@@ -922,9 +922,13 @@ KBUILD_LDFLAGS_MODULE += $(LD_FLAGS_LTO_CLANG)
 KBUILD_LDS_MODULE += scripts/module-lto.lds
 
 # Check for frame size exceeding threshold during prolog/epilog insertion.
+# LLD 13+ dropped -warn-stack-size (clang now handles -Wframe-larger-than
+# itself), so only pass it to older linkers.
 ifneq ($(CONFIG_FRAME_WARN),0)
+ifeq ($(shell $(LD) --version 2>/dev/null | grep -qE 'LLD (1[3-9]|[2-9][0-9])\.' && echo new),)
 KBUILD_LDFLAGS	+= -plugin-opt=-warn-stack-size=$(CONFIG_FRAME_WARN)
 KBUILD_LDFLAGS	+= -fatal-warnings
+endif
 endif
 endif
 
