@@ -2,7 +2,7 @@
 
 extern unsigned char g_user_buf[USER_STR_BUFF];
 extern int touch_black_test;
-extern tp_gesture;
+extern int tp_gesture;
 
 
 typedef struct {
