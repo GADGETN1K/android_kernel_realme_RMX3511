@@ -72,6 +72,8 @@ EXT_MODULES := \
 	kernel5.4/gpu/natt \
 	kernel5.4/input/fingerprint/microarray \
 	kernel5.4/input/touchscreen/focaltech_ft8756_spi \
+	kernel5.4/input/misc/op_rf_cable_monitor \
+	kernel5.4/nfc/SN4V \
 	kernel5.4/wcn/bluetooth/driver \
 	kernel5.4/wcn/fm/driver
 
