@@ -42,6 +42,23 @@ export MALI_PLATFORM_NAME := qogirl6
 export TARGET_BOARD_PLATFORM := qogirl6
 export TARGET_BUILD_VARIANT := user
 
+# This vendor code was written for clang 12 (Android S). realme's top-level
+# Makefile builds with a global -Werror, and newer clang turns old-style C
+# into errors (5.4 adds -Werror=strict-prototypes,
+# implicit-int, implicit-function-declaration; clang 16+ errors on
+# int-conversion and incompatible-function-pointer-types by default).
+# Keep them as warnings for these modules only; KCFLAGS is appended after
+# the kernel's own flags. Missing symbols are still caught by modpost.
+export KCFLAGS += \
+	-Wno-error \
+	-Wno-error=strict-prototypes \
+	-Wno-error=implicit-int \
+	-Wno-error=implicit-function-declaration \
+	-Wno-error=int-conversion \
+	-Wno-error=incompatible-function-pointer-types \
+	-Wno-error=incompatible-pointer-types \
+	-Wno-error=deprecated-non-prototype
+
 # Order matters: a module must come after the ones whose Module.symvers it
 # lists in KBUILD_EXTRA_SYMBOLS.
 EXT_MODULES := \
