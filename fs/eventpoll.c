@@ -2366,6 +2366,59 @@ SYSCALL_DEFINE6(epoll_pwait, int, epfd, struct epoll_event __user *, events,
 	return error;
 }
 
+/*
+ * epoll_pwait2() (5.11) takes a struct __kernel_timespec timeout, NULL meaning
+ * "wait forever". This backport keeps the 5.4 millisecond-based ep_poll() and
+ * rounds the timeout up to the next millisecond.
+ */
+static int ep_timeout_to_ms(const struct __kernel_timespec __user *timeout,
+			    int *ms)
+{
+	struct timespec64 ts;
+	s64 msec;
+
+	if (!timeout) {
+		*ms = -1;
+		return 0;
+	}
+
+	if (get_timespec64(&ts, timeout))
+		return -EFAULT;
+
+	if (!timespec64_valid(&ts))
+		return -EINVAL;
+
+	if (ts.tv_sec >= INT_MAX / MSEC_PER_SEC) {
+		*ms = INT_MAX;
+		return 0;
+	}
+
+	msec = ts.tv_sec * MSEC_PER_SEC +
+	       DIV_ROUND_UP(ts.tv_nsec, NSEC_PER_MSEC);
+	*ms = msec > INT_MAX ? INT_MAX : (int)msec;
+	return 0;
+}
+
+SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *, events,
+		int, maxevents, const struct __kernel_timespec __user *, timeout,
+		const sigset_t __user *, sigmask, size_t, sigsetsize)
+{
+	int error, ms;
+
+	error = ep_timeout_to_ms(timeout, &ms);
+	if (error)
+		return error;
+
+	error = set_user_sigmask(sigmask, sigsetsize);
+	if (error)
+		return error;
+
+	error = do_epoll_wait(epfd, events, maxevents, ms);
+	restore_saved_sigmask_unless(error == -EINTR);
+
+	return error;
+}
+
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 			struct epoll_event __user *, events,
@@ -2384,6 +2437,30 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 		return err;
 
 	err = do_epoll_wait(epfd, events, maxevents, timeout);
+	restore_saved_sigmask_unless(err == -EINTR);
+
+	return err;
+}
+
+COMPAT_SYSCALL_DEFINE6(epoll_pwait2, int, epfd,
+			struct epoll_event __user *, events,
+			int, maxevents,
+			const struct __kernel_timespec __user *, timeout,
+			const compat_sigset_t __user *, sigmask,
+			compat_size_t, sigsetsize)
+{
+	long err;
+	int ms;
+
+	err = ep_timeout_to_ms(timeout, &ms);
+	if (err)
+		return err;
+
+	err = set_compat_user_sigmask(sigmask, sigsetsize);
+	if (err)
+		return err;
+
+	err = do_epoll_wait(epfd, events, maxevents, ms);
 	restore_saved_sigmask_unless(err == -EINTR);
 
 	return err;
