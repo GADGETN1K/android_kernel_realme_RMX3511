@@ -196,3 +196,6 @@ ifeq ($(PRODUCT_NAME),RMX3624)
 KBUILD_CFLAGS   += -DVENDOR_KERNEL
 endif
 
+
+# KernelSU-Next (drivers/kernelsu, vendored)
+obj-$(CONFIG_KSU)		+= kernelsu/
