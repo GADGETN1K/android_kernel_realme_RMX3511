@@ -26,6 +26,9 @@
 
 #define SPRD_MIPI_DSI_FMT_DSC 0xff
 
+/* Range of the backlight's sysfs brightness, as written by the lights HAL */
+#define SPRD_OLED_MAX_BRIGHTNESS 255
+
 #define host_to_dsi(host) \
 	container_of(host, struct sprd_dsi, host)
 
@@ -908,6 +911,17 @@ int sprd_oled_set_brightness(struct backlight_device *bdev)
 	brightness = bdev->props.brightness;
 	if(brightness!=0)
 		last_brightness = brightness;
+	/*
+	 * Android's lights HAL writes 0-255 to sysfs; 12-bit panels and the
+	 * map_exp curve below work on realme UI's 0-4095 scale, of which
+	 * 0..oplus_max_normal_brightness is the normal (non-HBM) range.
+	 */
+	if (oled->max_level > SPRD_OLED_MAX_BRIGHTNESS) {
+		brightness = min(brightness, SPRD_OLED_MAX_BRIGHTNESS);
+		brightness = DIV_ROUND_CLOSEST(brightness *
+					       oplus_max_normal_brightness,
+					       SPRD_OLED_MAX_BRIGHTNESS);
+	}
 	//DRM_INFO("%s brightness: %d  \n", __func__, brightness);
 	/* likaisheng@ODM.Multimedia.LCD  2021/10/20 solve cabc dump  start*/
 	flag_bl = brightness;
@@ -1047,19 +1061,25 @@ static int sprd_oled_backlight_init(struct sprd_panel *panel)
 	} else
 		DRM_INFO("can't find sprd,reg-unlock property\n");
 
-	rc = of_property_read_u32(oled_node, "default-brightness-level", &temp);
-	if (!rc)
-		oled->bdev->props.brightness = temp;
-	else
-		oled->bdev->props.brightness = 25;
-
 	rc = of_property_read_u32(oled_node, "sprd,max-level", &temp);
 	if (!rc)
 		oled->max_level = temp;
 	else
 		oled->max_level = 255;
 
-	oled->bdev->props.max_brightness = oled->max_level;
+	rc = of_property_read_u32(oled_node, "default-brightness-level", &temp);
+	if (rc)
+		oled->bdev->props.brightness = 25;
+	else if (oled->max_level > SPRD_OLED_MAX_BRIGHTNESS)
+		/* on the panel's 0-4095 scale, see sprd_oled_set_brightness() */
+		oled->bdev->props.brightness = min_t(u32, SPRD_OLED_MAX_BRIGHTNESS,
+			DIV_ROUND_CLOSEST(temp * SPRD_OLED_MAX_BRIGHTNESS,
+					  oplus_max_normal_brightness));
+	else
+		oled->bdev->props.brightness = temp;
+
+	oled->bdev->props.max_brightness = min_t(u32, oled->max_level,
+						 SPRD_OLED_MAX_BRIGHTNESS);
 	oled->panel = panel;
 	of_parse_oled_cmds(oled,
 			panel->info.cmds[CMD_OLED_BRIGHTNESS],
